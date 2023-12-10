@@ -1,10 +1,10 @@
 import requests
 import streamlit as st
 from back_end import user_url
+from back_end import url
 import json
 class UserApp:
     def __init__(self):
-        st.title("Система управления пропусками")
         self.user_functions()
 
     def user_functions(self):
@@ -18,9 +18,25 @@ class UserApp:
             self.my_pass()
 
     def open_gate(self):
-        if st.button("Открыть точку доступа"):
-            st.subheader("Открытие точки доступа")
-            st.write("Точка доступа открыта")
+        if st.subheader("Открыть точку доступа"):
+            user_name = st.text_input("Введите имя", "")
+            user_password = st.text_input("Введите пароль", "", type="password")
+            if len(user_name) != 0 and len(user_password) != 0:
+                response_data = requests.get(user_url + "/" + f"?username={user_name}")
+                data = json.loads(response_data.text)
+                if len(data) == 3 or data['_roles'] == None:
+                    st.warning("Данного пользавателя не существует или он не подтвержден")
+                elif "user" in data['_roles'] and user_password == data['_password']:
+                    st.success("Успешный вход")
+                    but = st.button("Открыть точку доступа")
+                    if but:
+                        data = {
+                            "name" : "Точка",
+                            "description" : "Открытие точки",
+                            "trustees": data['_id']
+                        }
+                        response = requests.post(url + "/entrance", json = data)
+                        st.success("Точка доступа открыта")
 
     def request_pass(self):
         st.subheader("Запрос пропуска")

@@ -6,27 +6,35 @@ from back_end import url
 
 class AdminApp:
     def __init__(self):
-        self.passes_data = pd.DataFrame(columns=["ID", "Имя", "E-mail"])
+        self.passes_data = pd.DataFrame(columns=["ID", "Имя", "E-mail", "Роль"])
         self.check_passes_data = pd.DataFrame(columns=["ID", "Имя", "E-mail"])
-        admin_password = st.text_input("Введите пароль для доступа к административной панели", "", type="password")
-
-        if admin_password == "1111":
-            st.success("Пароль верный. Доступ к административной панели разрешен.")
+        self.histori_passes_data = pd.DataFrame(columns=["ID входа", "Имя", "Дата"])
+        admin_name = st.text_input("Введите имя", "")
+        admin_password = st.text_input("Введите пароль", "", type="password")
+        ente = False
+        if len(admin_name)!= 0 and len(admin_password) != 0:
+            response_data = requests.get(url +"/user/"+f"?username={admin_name}")
+            data = json.loads(response_data.text)
+            if len(data) == 3 or data['_roles'] == None:
+                st.warning("Данного пользавателя не существует")
+            elif "admin" in data['_roles'] and admin_password == data['_password'] :
+                st.success("Успешный вход")
+                ente = True
+            else:
+                    st.warning("Данный пользаватель не имеет такой привилегий")
+        if ente:
             self.admin_functions()
-        elif admin_password != "":
-            st.warning("Неверный пароль. Попробуйте снова.")
-
     def admin_functions(self):
         admin_choice = st.sidebar.selectbox("Выберите функцию",
-                                            ["Пропуска ожидают подтверждения", "Все пользователи", "Добавить пропуск"])
+                                            ["Пропуска ожидают подтверждения", "Все пользователи", "История входов"])
 
         if admin_choice == "Пропуска ожидают подтверждения":
             self.all_propusk()
             self.view_pending_approvals()
         elif admin_choice == "Все пользователи":
             self.view_all_passes()
-        elif admin_choice == "Добавить пропуск":
-            self.add_pass()
+        elif admin_choice == "История входов":
+            self.histori_pass()
 
     def view_pending_approvals(self):
         st.subheader("Пропуска ожидают подтверждения")
@@ -69,32 +77,24 @@ class AdminApp:
         self.all_propusk()
         st.experimental_rerun()
 
-    def add_pass(self):
-        st.subheader("Добавление пропуска")
-
-        full_name = st.text_input("Введите ФИО (Фамилия Имя Отчество)", "")
-        email = st.text_input("Введите e-mail", "")
-
-        if st.button("Добавить пропуск", key="add_pass"):
-            if not full_name or not email:
-                st.warning("Пожалуйста, введите ФИО и E-mail перед добавлением пропуска.")
-                return
-
-            name_parts = full_name.split()
-            if len(name_parts) != 3:
-                st.warning("Пожалуйста, введите полное ФИО (Фамилия Имя Отчество).")
-                return
-
-            pass_id = len(self.passes_data) + 1
-            self.passes_data.loc[len(self.passes_data)] = [pass_id, full_name, email, "Ожидает подтверждения"]
-            st.success(f"Пропуск для {full_name} добавлен с ID {pass_id} и ожидает подтверждения.")
+    def histori_pass(self):
+        st.subheader("История входов")
+        self.histori_pass_d()
+        st.table(self.histori_passes_data)
+    def histori_pass_d(self):
+        response_data = requests.get(url + "/entrance")
+        data = json.loads(response_data.text)
+        for item in data:
+            resp = requests.get(url+"/user/"+item["trustees"])
+            resp_data = json.loads(resp.text)
+            self.histori_passes_data.loc[len(self.histori_passes_data)] = [item["id"], resp_data['username'], item["created_at"]]
 
     def all_propusk(self):
         response_data = requests.get(url + "/user")
         data = json.loads(response_data.text)
         for item in data:
             if item["roles"] != None:
-                self.passes_data.loc[len(self.passes_data)] = [item["id"], item["username"], item["email"]]
+                self.passes_data.loc[len(self.passes_data)] = [item["id"], item["username"], item["email"],", ".join(item["roles"])]
 
     def check_propusk(self):
         response_data = requests.get(url+"/user")

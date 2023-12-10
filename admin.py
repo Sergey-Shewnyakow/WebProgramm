@@ -1,11 +1,13 @@
 import streamlit as st
 import pandas as pd
-from back_end import backend_url
+import requests
+import json
+from back_end import url
 
 class AdminApp:
     def __init__(self):
-        self.passes_data = pd.DataFrame(columns=["ID", "Имя", "E-mail", "Статус"])
-        st.title("Система управления пропусками")
+        self.passes_data = pd.DataFrame(columns=["ID", "Имя", "E-mail"])
+        self.check_passes_data = pd.DataFrame(columns=["ID", "Имя", "E-mail"])
         admin_password = st.text_input("Введите пароль для доступа к административной панели", "", type="password")
 
         if admin_password == "1111":
@@ -16,12 +18,12 @@ class AdminApp:
 
     def admin_functions(self):
         admin_choice = st.sidebar.selectbox("Выберите функцию",
-                                            ["Пропуска ожидают подтверждения", "Все пропуски", "Добавить пропуск"])
+                                            ["Пропуска ожидают подтверждения", "Все пользователи", "Добавить пропуск"])
 
         if admin_choice == "Пропуска ожидают подтверждения":
-            self.load_test_data()
+            self.all_propusk()
             self.view_pending_approvals()
-        elif admin_choice == "Все пропуски":
+        elif admin_choice == "Все пользователи":
             self.view_all_passes()
         elif admin_choice == "Добавить пропуск":
             self.add_pass()
@@ -29,43 +31,43 @@ class AdminApp:
     def view_pending_approvals(self):
         st.subheader("Пропуска ожидают подтверждения")
 
-        if self.passes_data.empty or "Статус" not in self.passes_data.columns:
-            st.info("Нет пропусков, ожидающих подтверждения.")
-            return
 
-        pending_approvals = self.passes_data[self.passes_data["Статус"] == "Ожидает подтверждения"]
+        self.check_propusk()
+        st.table(self.check_passes_data)
+        st.subheader("Подтверждение по ID")
+        user_id = st.text_input("Введите ID для подтверждения:")
+        accept_button = st.button("Подтвердить")
+        if accept_button:
+            self.accept_user(user_id)
 
-        selected_pass = st.selectbox("Выберите пропуск для проверки", pending_approvals["ID"].tolist())
-
-        if st.button("Показать выбранный пропуск"):
-            self.show_selected_pass(selected_pass)
-
-        st.table(pending_approvals[["ID", "Имя", "E-mail"]])
-
-    def show_selected_pass(self, pass_id):
-        st.subheader(f"Информация по пропуску ID {pass_id}")
-
-        selected_pass_info = self.passes_data.loc[self.passes_data["ID"] == pass_id]
-        st.table(selected_pass_info[["ID", "Имя", "E-mail", "Статус"]])
-
-        action = st.radio("Выберите действие", ["Подтвердить", "Отклонить", "Редактировать"])
-
-        if st.button(f"{action} пропуск", key=f"manage_pass_{pass_id}"):
-            if action == "Подтвердить":
-                self.confirm_pass(pass_id)
-            elif action == "Отклонить":
-                self.reject_pass(pass_id)
-            elif action == "Редактировать":
-                self.edit_pass(pass_id)
+    def accept_user(self, user_id):
+        data = {
+            "id": f"{user_id}",
+            "roles": ["user"]
+        }
+        requests.put(url + "/user/role", json=data)
+        self.check_propusk()
+        st.experimental_rerun()
 
     def view_all_passes(self):
-        st.subheader("Все пропуски")
+        st.subheader("Все пользователи")
+        self.all_propusk()
+
+        st.table(self.passes_data)
 
         if self.passes_data.empty:
             st.info("Нет зарегистрированных пропусков.")
             return
+        st.subheader("Удаление пользователя по ID")
+        user_id_to_delete = st.text_input("Введите ID для удаления:")
+        delete_button = st.button("Удалить пользователя")
+        if delete_button:
+            self.delete_pass_by_id(user_id_to_delete)
 
-        st.table(self.passes_data[["ID", "Имя", "E-mail", "Статус"]])
+    def delete_pass_by_id(self, pass_id):
+        requests.delete(url + "/user/" + f"{pass_id}")
+        self.all_propusk()
+        st.experimental_rerun()
 
     def add_pass(self):
         st.subheader("Добавление пропуска")
@@ -87,10 +89,19 @@ class AdminApp:
             self.passes_data.loc[len(self.passes_data)] = [pass_id, full_name, email, "Ожидает подтверждения"]
             st.success(f"Пропуск для {full_name} добавлен с ID {pass_id} и ожидает подтверждения.")
 
-    def load_test_data(self):
-        self.passes_data.loc[len(self.passes_data)] = [1, "Тестовый Пользователь", "Тестовый E-mail",
-                                                       "Ожидает подтверждения"]
+    def all_propusk(self):
+        response_data = requests.get(url + "/user")
+        data = json.loads(response_data.text)
+        for item in data:
+            if item["roles"] != None:
+                self.passes_data.loc[len(self.passes_data)] = [item["id"], item["username"], item["email"]]
 
+    def check_propusk(self):
+        response_data = requests.get(url+"/user")
+        data = json.loads(response_data.text)
+        for item in data:
+            if item["roles"] == None:
+                self.check_passes_data.loc[len(self.check_passes_data)] = [item["id"], item["username"], item["email"]]
 
 if __name__ == "__main__":
     admin = AdminApp()

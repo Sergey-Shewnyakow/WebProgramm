@@ -24,7 +24,7 @@ class UserApp:
 
     def open_gate(self):
         if st.subheader("Запрос на пропуск"):
-            user_name = st.text_input("Введите имя", "")
+            user_name = st.text_input("Введите ФИО (Фамилия Имя Отчество)", "")
             user_password = st.text_input("Введите пароль", "", type="password")
             if len(user_name) != 0 and len(user_password) != 0:
                 data = json.loads(requests.get(user_url + "/" + f"?username={user_name}").text)
@@ -72,7 +72,7 @@ class UserApp:
                     last_move = True
                     for item in data:
                         if item["username"] == full_name and item["email"] == e_mail or item["email"] == e_mail:
-                            st.warning("Такой пользователь уже имеет пропуск")
+                            st.warning("Такой пользователь уже зарегистрирован")
                             last_move = False
                     if last_move:
                         st.success("Ваш запрос отправлен. Ожидайте подтверждения.")
@@ -94,21 +94,29 @@ class UserApp:
     def my_pass(self):
         st.subheader("Мои пропуска")
         full_name = st.text_input("Введите ФИО (Фамилия Имя Отчество)", "")
-        password = st.text_input("Введите пароль", "")
-        if full_name and password:
+        user_password = st.text_input("Введите пароль", "", type="password")
+        if full_name and user_password:
             if st.button("Посмотретsь", key="request_button"):
-                response_data = requests.get(user_url)
-                data = json.loads(response_data.text)
+                data = json.loads(requests.get(user_url).text)
                 last_move = True
+                user_id =' '
                 for item in data:
-                    if item["username"] == full_name and item["password"] == password:
-                        st.success(item["id"])
+                    if item["username"] == full_name and item["password"] == user_password:
+                        st.success(item["username"])
+                        user_id = False
+                        st.success("Вы имеете доступ к:")
+                        for itemm in json.loads(requests.get(url +"/pass").text):
+                            if itemm['requester_id'] == item['id']:
+                                st.success(",".join(str(entry) for entry in ([json.loads(
+                                    requests.get(url + f"/entrance/{entrance_id}").text)['name']
+                                                                   for entrance_id in itemm['entrances']])))
+
         else:
             st.warning("Пожалуйста, введите все необходимые данные перед запросом.")
 
     def ent_pass(self):
         if st.subheader("Войти по пропуску"):
-            user_name = st.text_input("Введите имя", "")
+            user_name = st.text_input("Введите ФИО (Фамилия Имя Отчество)", "")
             user_password = st.text_input("Введите пароль", "", type="password")
             if len(user_name) != 0 and len(user_password) != 0:
                 response_data = requests.get(user_url + "/" + f"?username={user_name}")

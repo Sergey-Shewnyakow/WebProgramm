@@ -77,6 +77,9 @@ class AdminApp:
             self.delete_pass_by_id(user_id_to_delete)
 
     def delete_pass_by_id(self, pass_id):
+        for item in json.loads(requests.get(url+"/pass").text):
+            if item['requester_id'] == pass_id:
+                requests.delete(url + "/pass/" + f"{item['id']}")
         requests.delete(url + "/user/" + f"{pass_id}")
         self.all_propusk()
         st.experimental_rerun()

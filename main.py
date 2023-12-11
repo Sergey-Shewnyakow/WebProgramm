@@ -7,7 +7,7 @@ import requests
 
 
 def main():
-    st.title("Система управления пропусками")
+    st.title("Система управления доступом")
 
     menu_options = ["Пользователь", "Администратор"]
     selected_menu_option = st.sidebar.selectbox("Выбор уровня доступа", menu_options)

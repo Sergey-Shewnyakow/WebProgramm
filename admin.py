@@ -6,9 +6,10 @@ from back_end import url
 
 class AdminApp:
     def __init__(self):
+        self.pass_data = pd.DataFrame(columns=["ID", "Имя", "Место"])
+        self.all_pass_data = pd.DataFrame(columns=["ID", "Владелец", "Доступ к", "Дата создания"])
         self.passes_data = pd.DataFrame(columns=["ID", "Имя", "E-mail", "Роль"])
         self.check_passes_data = pd.DataFrame(columns=["ID", "Имя", "E-mail"])
-        self.histori_passes_data = pd.DataFrame(columns=["ID входа", "Имя", "Дата"])
         admin_name = st.text_input("Введите имя", "")
         admin_password = st.text_input("Введите пароль", "", type="password")
         ente = False
@@ -26,18 +27,21 @@ class AdminApp:
             self.admin_functions()
     def admin_functions(self):
         admin_choice = st.sidebar.selectbox("Выберите функцию",
-                                            ["Пропуска ожидают подтверждения", "Все пользователи", "История входов"])
+                                            ["Пользователи ожидают подтверждения",
+                                             "Все пользователи", "Пропуски ожидают подтверждения",
+                                             "Все пропуски"])
 
-        if admin_choice == "Пропуска ожидают подтверждения":
+        if admin_choice == "Пользователи ожидают подтверждения":
             self.all_propusk()
             self.view_pending_approvals()
         elif admin_choice == "Все пользователи":
+            self.view_all_user()
+        elif admin_choice == "Пропуски ожидают подтверждения":
+            self.passes()
+        elif admin_choice == "Все пропуски":
             self.view_all_passes()
-        elif admin_choice == "История входов":
-            self.histori_pass()
-
     def view_pending_approvals(self):
-        st.subheader("Пропуска ожидают подтверждения")
+        st.subheader("Пользователи ожидают подтверждения")
 
 
         self.check_propusk()
@@ -57,7 +61,7 @@ class AdminApp:
         self.check_propusk()
         st.experimental_rerun()
 
-    def view_all_passes(self):
+    def view_all_user(self):
         st.subheader("Все пользователи")
         self.all_propusk()
 
@@ -77,17 +81,36 @@ class AdminApp:
         self.all_propusk()
         st.experimental_rerun()
 
-    def histori_pass(self):
-        st.subheader("История входов")
-        self.histori_pass_d()
-        st.table(self.histori_passes_data)
-    def histori_pass_d(self):
-        response_data = requests.get(url + "/entrance")
+    def passes(self):
+        st.subheader("Пропуски ожидают подтверждения")
+
+        self.check_passes()
+        st.table(self.pass_data)
+
+        pass_id = st.text_input("Введите ID для подтверждения:")
+        accept_button = st.button("Подтвердить")
+        if accept_button:
+            self.accept_paass(pass_id)
+
+
+
+    def check_passes(self):
+        response_data = requests.get(url + "/pass")
         data = json.loads(response_data.text)
         for item in data:
-            resp = requests.get(url+"/user/"+item["trustees"])
-            resp_data = json.loads(resp.text)
-            self.histori_passes_data.loc[len(self.histori_passes_data)] = [item["id"], resp_data['username'], item["created_at"]]
+            if item["status"] == None:
+                self.pass_data.loc[len(self.pass_data)] = [item["id"],
+                                                           json.loads((requests.get(
+                                                               url + "/user/" + f"{item['requester_id']}")).text)['username'],
+                                                           ",".join(str(entry) for entry in ( [json.loads(
+                                                               requests.get(url + f"/entrance/{entrance_id}").text)['name']
+                                                                                               for entrance_id in item['entrances']]))]
+
+    def accept_paass(self, pass_id):
+        requests.put(url + "/pass/" + pass_id +"/confirm")
+        self.check_passes()
+        st.experimental_rerun()
+
 
     def all_propusk(self):
         response_data = requests.get(url + "/user")
@@ -102,6 +125,25 @@ class AdminApp:
         for item in data:
             if item["roles"] == None:
                 self.check_passes_data.loc[len(self.check_passes_data)] = [item["id"], item["username"], item["email"]]
+
+
+    def view_all_passes(self):
+        st.subheader("Все пропуски")
+        self.all_passes()
+
+        st.table(self.all_pass_data)
+    def all_passes(self):
+        data = json.loads(requests.get(url+"/pass").text)
+        for item in data:
+            if item["status"] != None:
+                self.all_pass_data.loc[len(self.all_pass_data)] = \
+                    [item["id"], json.loads((requests.get(
+                    url + "/user/" + f"{item['requester_id']}")).text)['username']
+                    , ",".join(str(entry) for entry in ( [json.loads(
+                    requests.get(url + f"/entrance/{entrance_id}").text)['name']
+                    for entrance_id in item['entrances']])), item['created_at']]
+
+
 
 if __name__ == "__main__":
     admin = AdminApp()

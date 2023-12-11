@@ -8,38 +8,51 @@ class UserApp:
         self.user_functions()
 
     def user_functions(self):
-        user_choice = st.radio("Выберите функцию", ["Открыть точку доступа", "Запросить пропуск","Мои пропуска"])
+        user_choice = st.radio("Выберите функцию", ["Войти по пропуску",
+                                                    "Запросить пропуск",
+                                                    "Регистрация",
+                                                    "Мои пропуска"])
 
-        if user_choice == "Открыть точку доступа":
+        if user_choice == "Запросить пропуск":
             self.open_gate()
-        elif user_choice == "Запросить пропуск":
+        elif user_choice == "Регистрация":
             self.request_pass()
         elif user_choice == "Мои пропуска":
             self.my_pass()
+        elif user_choice == "Войти по пропуску":
+            self.ent_pass()
 
     def open_gate(self):
-        if st.subheader("Открыть точку доступа"):
+        if st.subheader("Запрос на пропуск"):
             user_name = st.text_input("Введите имя", "")
             user_password = st.text_input("Введите пароль", "", type="password")
             if len(user_name) != 0 and len(user_password) != 0:
-                response_data = requests.get(user_url + "/" + f"?username={user_name}")
-                data = json.loads(response_data.text)
+                data = json.loads(requests.get(user_url + "/" + f"?username={user_name}").text)
                 if len(data) == 3 or data['_roles'] == None:
                     st.warning("Данного пользавателя не существует или он не подтвержден")
                 elif "user" in data['_roles'] and user_password == data['_password']:
                     st.success("Успешный вход")
-                    but = st.button("Открыть точку доступа")
-                    if but:
-                        data = {
-                            "name" : "Точка",
-                            "description" : "Открытие точки",
-                            "trustees": data['_id']
-                        }
-                        response = requests.post(url + "/entrance", json = data)
-                        st.success("Точка доступа открыта")
+                    response_ent = requests.get(url + "/entrance")
+                    data_ent = json.loads(response_ent.text)
+                    buttons = []
+                    for i in range(len(data_ent)):
+                        button_label = f"{data_ent[i]['name']}"
+                        button = st.button(button_label)
+                        buttons.append(button)
+
+                    for i, button in enumerate(buttons):
+                        if button:
+                            passes ={
+                                "entrances": [f"{data_ent[i]['id']}"],
+                                "requesterId": f"{data['_id']}",
+                                "oneTime": 'false'
+
+                            }
+                            requests.post(url +'/pass', json = passes)
+                            st.success(f"Запрос на вход {data_ent[i]['name']} отправлен")
 
     def request_pass(self):
-        st.subheader("Запрос пропуска")
+        st.subheader("Регистрация")
         full_name = st.text_input("Введите ФИО (Фамилия Имя Отчество)", "")
         password = st.text_input("Введите пароль", "")
         e_mail = st.text_input("Введите e-mail", "")
@@ -76,6 +89,8 @@ class UserApp:
                 st.warning("Пожалуйста, введите все необходимые данные перед запросом.")
         else:
             st.warning("Пожалуйста, введите ФИО в правильном формате (Фамилия Имя Отчество).")
+
+
     def my_pass(self):
         st.subheader("Мои пропуска")
         full_name = st.text_input("Введите ФИО (Фамилия Имя Отчество)", "")
@@ -90,6 +105,38 @@ class UserApp:
                         st.success(item["id"])
         else:
             st.warning("Пожалуйста, введите все необходимые данные перед запросом.")
+
+    def ent_pass(self):
+        if st.subheader("Войти по пропуску"):
+            user_name = st.text_input("Введите имя", "")
+            user_password = st.text_input("Введите пароль", "", type="password")
+            if len(user_name) != 0 and len(user_password) != 0:
+                response_data = requests.get(user_url + "/" + f"?username={user_name}")
+                data = json.loads(response_data.text)
+                if len(data) == 3 or data['_roles'] == None:
+                    st.warning("Данного пользавателя не существует или он не подтвержден")
+                elif "user" in data['_roles'] and user_password == data['_password']:
+                    response_ent = requests.get(url + "/entrance")
+                    data_ent = json.loads(response_ent.text)
+                    buttons = []
+                    for i in range(len(data_ent)):
+                        button_label = f"{data_ent[i]['name']}"
+                        button = st.button(button_label)
+                        buttons.append(button)
+
+                    for i, button in enumerate(buttons):
+                        if button:
+                            data_pass = json.loads(requests.get(url + "/pass").text)
+                            find_pass = False
+                            for item in data_pass:
+                                if item['requester_id'] == data['_id']:
+                                    if data_ent[i]['id'] in item["entrances"]:
+                                        st.success(f"Вы вошли в {data_ent[i]['name']}")
+                                        find_pass = True
+                            if not find_pass:
+                                st.warning(f"У вас нет доступа к {data_ent[i]['name']}")
+
+
 
 if __name__ == "__main__":
     user = UserApp()
